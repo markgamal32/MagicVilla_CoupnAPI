@@ -1,5 +1,6 @@
 using MagicVilla_CoupnAPI.Data;
 using MagicVilla_CoupnAPI.Models;
+using MagicVilla_CoupnAPI.Models.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,21 +35,38 @@ app.MapGet("/api/coupon/{id:int}", (int id) =>
 
 
 //create coupon
-app.MapPost("/api/coupon", ([FromBody] Coupon coupon ) =>
+app.MapPost("/api/coupon", ([FromBody] CouponCreateDTO coupon_c_dto ) =>
 {
-	if (coupon.Id != 0 || string.IsNullOrEmpty(coupon.Name))
+	if (string.IsNullOrEmpty(coupon_c_dto.Name))
 	{
 		return Results.BadRequest("Invalid Id Or Coupon Name");
 	}
-	if (CouponStore.coupons.FirstOrDefault(u => u.Name.ToLower() == coupon.Name.ToLower()) != null)
+	if (CouponStore.coupons.FirstOrDefault(u => u.Name.ToLower() == coupon_c_dto.Name.ToLower()) != null)
 	{
 		return Results.BadRequest("Coupon Name is Already Exists");
 	}
 
+	Coupon coupon = new ()
+	{
+		Name=coupon_c_dto.Name,
+		IsActive=coupon_c_dto.IsActive,
+		Percent = coupon_c_dto.Percent
+	};
+
 	coupon.Id = CouponStore.coupons.OrderByDescending(c => c.Id).FirstOrDefault().Id + 1;
 	CouponStore.coupons.Add(coupon);
-	return Results.CreatedAtRoute("GetCoupon", new {id=coupon.Id}, coupon);
-}).WithName("CreatedCoupon").Accepts<Coupon>("/application/json").Produces<Coupon>(201).Produces(400);
+
+	CouponDTO couponDTO = new()
+	{
+		IsActive = coupon.IsActive,
+		Name = coupon.Name,
+		Percent = coupon.Percent,
+		Id = coupon.Id,
+		Created = coupon.Created
+    };
+
+	return Results.CreatedAtRoute("GetCoupon", new {id= couponDTO.Id}, couponDTO);
+}).WithName("CreatedCoupon").Accepts<CouponCreateDTO>("/application/json").Produces<CouponDTO>(201).Produces(400);
 
 
 //edit coupon
