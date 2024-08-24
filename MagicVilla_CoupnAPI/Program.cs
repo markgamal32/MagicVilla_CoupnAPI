@@ -5,6 +5,7 @@ using MagicVilla_CoupnAPI.Models.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using AutoMapper;
+using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapper(typeof(MappingConfig));
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
 
 var app = builder.Build();
 
@@ -27,7 +30,7 @@ app.UseHttpsRedirection();
 //get all the coupons and injecting ILogger
 app.MapGet("/api/coupon", (ILogger<Program> _logger) =>
 {
-	// using built-in  ILogger to print Information massage 'Get all Coupons'
+	// using built-in  ILogger to print Information message 'Get all Coupons'
 	_logger.Log(LogLevel.Information, "Get all Coupons");
 	return Results.Ok(CouponStore.coupons);
 }).WithName("GetCoupons").Produces<IEnumerable<Coupon>>(200);
@@ -40,11 +43,14 @@ app.MapGet("/api/coupon/{id:int}", (int id) =>
 
 
 //create coupon and injecting ( IMapper _IMapper )
-app.MapPost("/api/coupon", (IMapper _IMapper, [FromBody] CouponCreateDTO coupon_c_dto ) =>
+app.MapPost("/api/coupon",  (IMapper _IMapper,IValidator<CouponCreateDTO> _validator ,[FromBody] CouponCreateDTO coupon_c_dto ) =>
 {
-	if (string.IsNullOrEmpty(coupon_c_dto.Name))
+	// using Async , Await instead of =>>  .GetAwaiter().GetResult()
+	var validationResult =  _validator.ValidateAsync(coupon_c_dto).GetAwaiter().GetResult();
+	if (!validationResult.IsValid)
 	{
-		return Results.BadRequest("Invalid Id Or Coupon Name");
+		// using validationResult to return the error message
+		return Results.BadRequest(validationResult.Errors.FirstOrDefault().ToString());
 	}
 	if (CouponStore.coupons.FirstOrDefault(u => u.Name.ToLower() == coupon_c_dto.Name.ToLower()) != null)
 	{
@@ -74,7 +80,7 @@ app.MapPut("/api/coupon",() =>
 //delete coupon
 app.MapDelete("/api/coupon/{id:int}",(int id) =>
 {
-	 //return Results.Ok(CouponStore.coupons.FirstOrDefault(c => c.Id == id));
+	 
 });
 
 app.Run();
