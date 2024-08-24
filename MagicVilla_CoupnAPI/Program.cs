@@ -1,8 +1,10 @@
+using MagicVilla_CoupnAPI;
 using MagicVilla_CoupnAPI.Data;
 using MagicVilla_CoupnAPI.Models;
 using MagicVilla_CoupnAPI.Models.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
+using AutoMapper;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddAutoMapper(typeof(MappingConfig));
 
 var app = builder.Build();
 
@@ -21,9 +24,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-//get all the coupons
-app.MapGet("/api/coupon", () =>
+//get all the coupons and injecting ILogger
+app.MapGet("/api/coupon", (ILogger<Program> _logger) =>
 {
+	// using built-in  ILogger to print Information massage 'Get all Coupons'
+	_logger.Log(LogLevel.Information, "Get all Coupons");
 	return Results.Ok(CouponStore.coupons);
 }).WithName("GetCoupons").Produces<IEnumerable<Coupon>>(200);
 
@@ -34,8 +39,8 @@ app.MapGet("/api/coupon/{id:int}", (int id) =>
 }).WithName("GetCoupon").Produces<Coupon>(200);
 
 
-//create coupon
-app.MapPost("/api/coupon", ([FromBody] CouponCreateDTO coupon_c_dto ) =>
+//create coupon and injecting ( IMapper _IMapper )
+app.MapPost("/api/coupon", (IMapper _IMapper, [FromBody] CouponCreateDTO coupon_c_dto ) =>
 {
 	if (string.IsNullOrEmpty(coupon_c_dto.Name))
 	{
@@ -46,24 +51,14 @@ app.MapPost("/api/coupon", ([FromBody] CouponCreateDTO coupon_c_dto ) =>
 		return Results.BadRequest("Coupon Name is Already Exists");
 	}
 
-	Coupon coupon = new ()
-	{
-		Name=coupon_c_dto.Name,
-		IsActive=coupon_c_dto.IsActive,
-		Percent = coupon_c_dto.Percent
-	};
+	// using AutoMapper to convert from coupon_c_dto obj to Coupon obj
+	Coupon coupon = _IMapper.Map<Coupon>(coupon_c_dto);
 
 	coupon.Id = CouponStore.coupons.OrderByDescending(c => c.Id).FirstOrDefault().Id + 1;
 	CouponStore.coupons.Add(coupon);
 
-	CouponDTO couponDTO = new()
-	{
-		IsActive = coupon.IsActive,
-		Name = coupon.Name,
-		Percent = coupon.Percent,
-		Id = coupon.Id,
-		Created = coupon.Created
-    };
+	// using AutoMapper to convert from coupon obj to CouponDTO obj
+	CouponDTO couponDTO = _IMapper.Map<CouponDTO>(coupon);
 
 	return Results.CreatedAtRoute("GetCoupon", new {id= couponDTO.Id}, couponDTO);
 }).WithName("CreatedCoupon").Accepts<CouponCreateDTO>("/application/json").Produces<CouponDTO>(201).Produces(400);
