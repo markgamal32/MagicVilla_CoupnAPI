@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using AutoMapper;
 using FluentValidation;
 using System.Net;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +57,7 @@ app.MapGet("/api/coupon/{id:int}", (int id) =>
 app.MapPost("/api/coupon",  async (IMapper _IMapper,IValidator<CouponCreateDTO> _validator ,[FromBody] CouponCreateDTO coupon_c_dto ) =>
 {
 	// initial values of the response obj 
-	ApiResponse response = new() {IsSuccess=false,StatusCode=HttpStatusCode.BadRequest };
+	ApiResponse response = new() { IsSuccess = false, StatusCode = HttpStatusCode.BadRequest };
 	
 	// using Async , Await instead of =>>  .GetAwaiter().GetResult()
 	var validationResult =await  _validator.ValidateAsync(coupon_c_dto);
@@ -86,21 +87,66 @@ app.MapPost("/api/coupon",  async (IMapper _IMapper,IValidator<CouponCreateDTO> 
 	response.StatusCode = HttpStatusCode.Created;
 
 	return Results.Ok(response);
-}).WithName("CreatedCoupon").Accepts<CouponCreateDTO>("/application/json").Produces<ApiResponse>(201).Produces(400);
+}).WithName("CreatedCoupon").Accepts<CouponCreateDTO>("application/json").Produces<ApiResponse>(201).Produces(400);
+
+
 
 
 //edit coupon
-app.MapPut("/api/coupon",() =>
+app.MapPut("/api/coupon",async (IMapper _IMapper, IValidator<CouponUpdateDTO> _validator, [FromBody] CouponUpdateDTO coupon_u_dto) =>
 {
+	ApiResponse response = new() { IsSuccess = false, StatusCode = HttpStatusCode.BadRequest };
+	var validationResult = await _validator.ValidateAsync(coupon_u_dto);
+	if (!validationResult.IsValid)
+	{
+		// using validationResult to return the error message
+		response.ErrorMessages.Add(validationResult.Errors.FirstOrDefault().ToString());
+		return Results.BadRequest(response);
+	}
+	if (CouponStore.coupons.FirstOrDefault(u => u.Name.ToLower() == coupon_u_dto.Name.ToLower()) != null)
+	{
+		response.ErrorMessages.Add("Coupon Name is Already Exists");
+		return Results.BadRequest(response);
+	}
+
+	Coupon couponFromStore = CouponStore.coupons.FirstOrDefault(u => u.Id == coupon_u_dto.Id);
+	couponFromStore.Name = coupon_u_dto.Name;
+	couponFromStore.Percent = coupon_u_dto.Percent;
+	couponFromStore.IsActive = coupon_u_dto.IsActive;
+	couponFromStore.LastUpdated = DateTime.Now;
+
+	
+
+	response.Result = _IMapper.Map<CouponDTO>(couponFromStore);
+	response.IsSuccess = true;
+	response.StatusCode = HttpStatusCode.OK;
+
+	return Results.Ok(response);
 
 
-});
+}).WithName("UpdatedCoupon").Accepts<CouponUpdateDTO>("application/json").Produces<ApiResponse>(200).Produces(400); 
+
 
 //delete coupon
 app.MapDelete("/api/coupon/{id:int}",(int id) =>
 {
-	 
-});
+	ApiResponse response = new() { IsSuccess = false, StatusCode = HttpStatusCode.BadRequest };
+	Coupon couponFromStore = CouponStore.coupons.FirstOrDefault(u => u.Id == id);
+    if (couponFromStore != null)
+    {
+		CouponStore.coupons.Remove(couponFromStore);
+		response.IsSuccess = true;
+		response.StatusCode = HttpStatusCode.NoContent;
+		return Results.Ok(response);
+	}
+    else
+    {
+		response.ErrorMessages.Add("Invalid Id");
+		return Results.BadRequest(response);
+
+	}
+
+}).WithName("DeleteCoupon");
 
 app.Run();
 
